@@ -2,11 +2,14 @@ from flask import Flask, request
 import re
 import requests
 import os
+import json
 
 app = Flask(__name__)
 
-TELEGRAM_TOKEN = "Y8270482574:AAFAOKe66e7iInHxXFHoSRrqCicJHANKre8"
+# --- YOUR VALUES ---
+TELEGRAM_TOKEN = "8270482574:AAFAOKe66e7iInHxXFHoSRrqCicJHANKre8"
 CHAT_ID = 1628606216
+# --------------------
 
 def send_telegram(msg):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -15,7 +18,10 @@ def send_telegram(msg):
         "text": msg,
         "parse_mode": "HTML"
     }
-    requests.post(url, data=data)
+    try:
+        requests.post(url, data=data, timeout=10)
+    except:
+        pass
 
 @app.route("/", methods=["GET"])
 def health():
@@ -23,15 +29,27 @@ def health():
 
 @app.route("/", methods=["POST"])
 def notify():
-    raw = request.data.decode("utf-8")
+    # Try reading JSON first (Apps Script sends JSON)
+    try:
+        data = request.get_json(silent=True)
+    except:
+        data = None
 
-    links = re.findall(r'https?://\S+', raw)
-    subject_match = re.search(r"Subject: (.*)", raw)
-    title = subject_match.group(1) if subject_match else "New Job Alert"
+    if data and isinstance(data, dict):
+        raw_email = data.get("raw_email", "")
+        subject = data.get("subject", "New Job Alert")
+    else:
+        # Fallback for raw POST text
+        raw_email = request.data.decode("utf-8")
+        subject_match = re.search(r"Subject: (.*)", raw_email)
+        subject = subject_match.group(1) if subject_match else "New Job Alert"
 
-    if links:
-        for link in links:
-            send_telegram(f"📢 <b>{title}</b>\n🔗 {link}")
+    # Extract ALL links
+    links = re.findall(r'https?://[^\s<>"\']+', raw_email)
+
+    # Send notification if any link exists
+    for link in links:
+        send_telegram(f"📢 <b>{subject}</b>\n🔗 {link}")
 
     return "OK", 200
 
