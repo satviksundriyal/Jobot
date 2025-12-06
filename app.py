@@ -1,6 +1,7 @@
 from flask import Flask, request
 import re
 import requests
+import os
 
 app = Flask(__name__)
 
@@ -16,14 +17,15 @@ def send_telegram(msg):
     }
     requests.post(url, data=data)
 
+@app.route("/", methods=["GET"])
+def health():
+    return "Jobot is running ✅", 200
+
 @app.route("/", methods=["POST"])
 def notify():
     raw = request.data.decode("utf-8")
 
-    # extract all URLs in the email
     links = re.findall(r'https?://\S+', raw)
-
-    # extract subject line (job title)
     subject_match = re.search(r"Subject: (.*)", raw)
     title = subject_match.group(1) if subject_match else "New Job Alert"
 
@@ -34,4 +36,5 @@ def notify():
     return "OK", 200
 
 if __name__ == "__main__":
-    app.run()
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
